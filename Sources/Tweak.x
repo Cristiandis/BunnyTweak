@@ -1,10 +1,10 @@
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
-#import "Utils.h"
-#import "Logger.h"
-#import "Theme.h"
 #import "Fonts.h"
 #import "LoaderConfig.h"
+#import "Logger.h"
+#import "Theme.h"
+#import "Utils.h"
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 static NSURL *source;
 static BOOL isJailbroken;
@@ -21,15 +21,17 @@ static LoaderConfig *loaderConfig;
 
     NSBundle *revengePatchesBundle = [NSBundle bundleWithPath:revengePatchesBundlePath];
     if (!revengePatchesBundle) {
-        Log(@"Failed to load RevengePatches bundle from path: %@", revengePatchesBundlePath);
-        showErrorAlert(@"Loader Error", @"Failed to initialize mod loader. Please reinstall the tweak.");
+        Log(@"Failed to load Patches bundle from path: %@", revengePatchesBundlePath);
+        showErrorAlert(@"Loader Error",
+                       @"Failed to initialize mod loader. Please reinstall the tweak.", nil);
         return %orig;
     }
 
     NSURL *patchPath = [revengePatchesBundle URLForResource:@"payload-base" withExtension:@"js"];
     if (!patchPath) {
         Log(@"Failed to find payload-base.js in bundle");
-        showErrorAlert(@"Loader Error", @"Failed to initialize mod loader. Please reinstall the tweak.");
+        showErrorAlert(@"Loader Error",
+                       @"Failed to initialize mod loader. Please reinstall the tweak.", nil);
         return %orig;
     }
 
@@ -37,7 +39,8 @@ static LoaderConfig *loaderConfig;
     Log(@"Injecting loader");
     %orig(patchData, source, YES);
 
-    __block NSData *bundle = [NSData dataWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"bundle.js"]];
+    __block NSData *bundle =
+        [NSData dataWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"bundle.js"]];
 
     dispatch_group_t group = dispatch_group_create();
     dispatch_group_enter(group);
@@ -51,51 +54,65 @@ static LoaderConfig *loaderConfig;
         Log(@"Using default bundle URL: %@", bundleUrl.absoluteString);
     }
 
-    NSMutableURLRequest *bundleRequest = [NSMutableURLRequest requestWithURL:bundleUrl
-                                                               cachePolicy:NSURLRequestReloadIgnoringLocalAndRemoteCacheData
-                                                           timeoutInterval:3.0];
+    NSMutableURLRequest *bundleRequest =
+        [NSMutableURLRequest requestWithURL:bundleUrl
+                                cachePolicy:NSURLRequestReloadIgnoringLocalAndRemoteCacheData
+                            timeoutInterval:3.0];
 
-    NSString *bundleEtag = [NSString stringWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"etag.txt"]
-                                                   encoding:NSUTF8StringEncoding
-                                                      error:nil];
+    NSString *bundleEtag = [NSString
+        stringWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"etag.txt"]
+                       encoding:NSUTF8StringEncoding
+                          error:nil];
     if (bundleEtag && bundle) {
         [bundleRequest setValue:bundleEtag forHTTPHeaderField:@"If-None-Match"];
     }
 
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-    [[session dataTaskWithRequest:bundleRequest completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
-            NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
-            if (httpResponse.statusCode == 200) {
-                bundle = data;
-                [bundle writeToURL:[pyoncordDirectory URLByAppendingPathComponent:@"bundle.js"] atomically:YES];
+    NSURLSession *session = [NSURLSession
+        sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+    [[session
+        dataTaskWithRequest:bundleRequest
+          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+              if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
+                  NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+                  if (httpResponse.statusCode == 200) {
+                      bundle = data;
+                      [bundle
+                          writeToURL:[pyoncordDirectory URLByAppendingPathComponent:@"bundle.js"]
+                          atomically:YES];
 
-                NSString *etag = [httpResponse.allHeaderFields objectForKey:@"Etag"];
-                if (etag) {
-                    [etag writeToURL:[pyoncordDirectory URLByAppendingPathComponent:@"etag.txt"]
-                         atomically:YES
-                           encoding:NSUTF8StringEncoding
-                              error:nil];
-                }
-            }
-        }
-        dispatch_group_leave(group);
-    }] resume];
+                      NSString *etag = [httpResponse.allHeaderFields objectForKey:@"Etag"];
+                      if (etag) {
+                          [etag
+                              writeToURL:[pyoncordDirectory URLByAppendingPathComponent:@"etag.txt"]
+                              atomically:YES
+                                encoding:NSUTF8StringEncoding
+                                   error:nil];
+                      }
+                  }
+              }
+              dispatch_group_leave(group);
+          }] resume];
 
     dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
 
-    NSString *themeString = [NSString stringWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"current-theme.json"]
-                                                    encoding:NSUTF8StringEncoding
-                                                       error:nil];
+    NSString *themeString =
+        [NSString stringWithContentsOfURL:[pyoncordDirectory
+                                              URLByAppendingPathComponent:@"current-theme.json"]
+                                 encoding:NSUTF8StringEncoding
+                                    error:nil];
     if (themeString) {
-        NSString *jsCode = [NSString stringWithFormat:@"globalThis.__PYON_LOADER__.storedTheme=%@", themeString];
+        NSString *jsCode =
+            [NSString stringWithFormat:@"globalThis.__PYON_LOADER__.storedTheme=%@", themeString];
         %orig([jsCode dataUsingEncoding:NSUTF8StringEncoding], source, async);
     }
 
-    NSData *fontData = [NSData dataWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"fonts.json"]];
+    NSData *fontData = [NSData
+        dataWithContentsOfURL:[pyoncordDirectory URLByAppendingPathComponent:@"fonts.json"]];
     if (fontData) {
         NSError *jsonError;
-        NSDictionary *fontDict = [NSJSONSerialization JSONObjectWithData:fontData options:0 error:&jsonError];
+        NSDictionary *fontDict = [NSJSONSerialization JSONObjectWithData:fontData
+                                                                 options:0
+                                                                   error:&jsonError];
         if (!jsonError && fontDict[@"main"]) {
             Log(@"Found font configuration, applying...");
             patchFonts(fontDict[@"main"], fontDict[@"name"]);
@@ -110,10 +127,11 @@ static LoaderConfig *loaderConfig;
     NSURL *preloadsDirectory = [pyoncordDirectory URLByAppendingPathComponent:@"preloads"];
     if ([[NSFileManager defaultManager] fileExistsAtPath:preloadsDirectory.path]) {
         NSError *error = nil;
-        NSArray *contents = [[NSFileManager defaultManager] contentsOfDirectoryAtURL:preloadsDirectory
-                                                        includingPropertiesForKeys:nil
-                                                                           options:0
-                                                                             error:&error];
+        NSArray *contents =
+            [[NSFileManager defaultManager] contentsOfDirectoryAtURL:preloadsDirectory
+                                          includingPropertiesForKeys:nil
+                                                             options:0
+                                                               error:&error];
         if (!error) {
             for (NSURL *fileURL in contents) {
                 if ([[fileURL pathExtension] isEqualToString:@"js"]) {
@@ -139,31 +157,37 @@ static LoaderConfig *loaderConfig;
         source = [NSURL URLWithString:@"revenge"];
 
         NSString *install_prefix = @"/var/jb";
-        isJailbroken = [[NSFileManager defaultManager] fileExistsAtPath:install_prefix];
+        isJailbroken             = [[NSFileManager defaultManager] fileExistsAtPath:install_prefix];
 
-        NSString *bundlePath = [NSString stringWithFormat:@"%@/Library/Application Support/RevengeResources.bundle", install_prefix];
+        NSString *bundlePath =
+            [NSString stringWithFormat:@"%@/Library/Application Support/RevengeResources.bundle",
+                                       install_prefix];
         Log(@"Is jailbroken: %d", isJailbroken);
         Log(@"Bundle path for jailbroken: %@", bundlePath);
 
-        NSString *jailedPath = [[NSBundle mainBundle].bundleURL.path stringByAppendingPathComponent:@"RevengeResources.bundle"];
+        NSString *jailedPath = [[NSBundle mainBundle].bundleURL.path
+            stringByAppendingPathComponent:@"RevengeResources.bundle"];
         Log(@"Bundle path for jailed: %@", jailedPath);
 
         revengePatchesBundlePath = isJailbroken ? bundlePath : jailedPath;
         Log(@"Selected bundle path: %@", revengePatchesBundlePath);
 
-        BOOL bundleExists = [[NSFileManager defaultManager] fileExistsAtPath:revengePatchesBundlePath];
+        BOOL bundleExists =
+            [[NSFileManager defaultManager] fileExistsAtPath:revengePatchesBundlePath];
         Log(@"Bundle exists at path: %d", bundleExists);
 
         NSError *error = nil;
-        NSArray *bundleContents = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:revengePatchesBundlePath error:&error];
+        NSArray *bundleContents =
+            [[NSFileManager defaultManager] contentsOfDirectoryAtPath:revengePatchesBundlePath
+                                                                error:&error];
         if (error) {
             Log(@"Error listing bundle contents: %@", error);
         } else {
             Log(@"Bundle contents: %@", bundleContents);
         }
 
-pyoncordDirectory = getPyoncordDirectory();
-        loaderConfig = [[LoaderConfig alloc] init];
+        pyoncordDirectory = getPyoncordDirectory();
+        loaderConfig      = [[LoaderConfig alloc] init];
         [loaderConfig loadConfig];
 
         %init;
